@@ -29,6 +29,7 @@ architecture Behavioral of tt_um_react_test_saksh156 is
 
     -- Timer
     signal timer_cnt   : unsigned(24 downto 0) := (others => '0');
+    signal timer_en    : std_logic := '0';  -- Timer enable signal
 
     -- Inputs mapped
     signal start_bn, react_bn, rand_seed : std_logic;
@@ -135,17 +136,51 @@ begin
     end process;
 
     ------------------------------------------------------------------------
-    -- Reaction timer
+    -- Reaction timer process (with timing adjustment based on rmode_sel)
     ------------------------------------------------------------------------
     process(clk, rst_n)
     begin
         if rst_n = '0' then
             timer_cnt <= (others => '0');
+            timer_en <= '0';
         elsif rising_edge(clk) then
             if state = S_MEASURE then
-                timer_cnt <= timer_cnt + 1;
-            elsif state = S_IDLE then
-                timer_cnt <= (others => '0');
+                -- Enable the timer when in the MEASURE state
+                timer_en <= '1';
+                
+                -- Adjust the reaction timer based on rmode_sel
+                case rmode_sel is
+                    when "000" =>  -- Normal mode (standard counting)
+                        if timer_en = '1' then
+                            timer_cnt <= timer_cnt + 1;
+                        end if;
+                    when "001" =>  -- Easy mode (faster reaction, increment faster)
+                        if timer_en = '1' then
+                            timer_cnt <= timer_cnt + 2;  -- Faster counting
+                        end if;
+                    when "010" =>  -- Normal mode (standard counting)
+                        if timer_en = '1' then
+                            timer_cnt <= timer_cnt + 1;
+                        end if;
+                    when "011" =>  -- Hard mode (slower reaction, increment slower)
+                        if timer_en = '1' then
+                            if (timer_cnt mod 2) = 0 then
+                                timer_cnt <= timer_cnt + 1;  -- Slower counting
+                            end if;
+                        end if;
+                    when "100" =>  -- Penalty mode (even slower counting)
+                        if timer_en = '1' then
+                            if (timer_cnt mod 4) = 0 then
+                                timer_cnt <= timer_cnt + 1;  -- Very slow counting
+                            end if;
+                        end if;
+                    when others => 
+                        if timer_en = '1' then
+                            timer_cnt <= timer_cnt + 1;  -- Default behavior
+                        end if;
+                end case;
+            else
+                timer_en <= '0';  -- Disable timer when not in MEASURE state
             end if;
         end if;
     end process;
